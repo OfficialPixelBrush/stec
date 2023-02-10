@@ -75,7 +75,7 @@ int printScreen() {
 	// Draw that shit
 	int x,y = 0;
 	for (int i = 0; i < fileSize; i++) {
-		if (y < rows) {
+		if (y < rows-1) { // I don't like this bodge, but it works
 			if (x < cols) {
 				printf("\x1b[%d;%dH",y+1,x+1);
 				printf("%c",fileMem[i]);
@@ -91,6 +91,9 @@ int printScreen() {
 
 // Type a single character
 int typeCharacter(char character) {
+	// Set cursor position to reflect cursorX and cursorY
+	// Make space in the array for a character/
+	// Insert the Character
 	// TODO: Figure this shit out
 	/*
 	fileSize++;
@@ -100,8 +103,7 @@ int typeCharacter(char character) {
     for (i = fileSize; i >= pos; i--)
         fileMem[i] = fileMem[i - 1];
 	fileMem[pos] = character;
-	printScreen();
-	*/
+	printScreen();*/
 }
 	
 int main(int argc, char *argv[]) {
