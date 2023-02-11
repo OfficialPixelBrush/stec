@@ -73,18 +73,19 @@ int printScreen() {
 	// Clear the Screen
 	printf("\x1b[2J");
 	// Draw that shit
-	int x,y = 0;
-	for (int i = 0; i < fileSize; i++) {
-		if (y < rows-1) { // I don't like this bodge, but it works
-			if (x < cols) {
-				printf("\x1b[%d;%dH",y+1,x+1);
-				printf("%c",fileMem[i]);
-				x++;
-			}
+	int x,y = 1;
+	for (int i = 0; i <= fileSize; i++) {
+		if (y <= rows) {
 			if (fileMem[i] == '\n') {
 				y++;
-				x = 0;
+				x = 1;
+			} else {
+				printf("\x1b[%u;%uH",y,x);
+				putchar(fileMem[i]);
+				x++;
 			}
+		} else {
+			break;
 		}
 	}
 }
@@ -154,7 +155,7 @@ int main(int argc, char *argv[]) {
 	// Print until width of tty is reached, then read until next new-line
 	printScreen(cursorX,cursorY);
 	// Reset Cursor
-	printf("\x1b[H");
+	//printf("\x1b[H");
 	
 	char currentCharacter;
 	while(1) {
