@@ -1,3 +1,11 @@
+/*  ___ ____ ___  ___
+ * /__   /  /__  /
+ * __/  /  /__  /__ 
+ * by T. Virtmann
+ *
+ * A down to earth text-editor that is straight-forward,
+ * simple and has no obscure keybindings. 
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -87,18 +95,23 @@ int fsize(FILE *fp){
     return sz;
 }
 
-char *fileMem;
-int rows, cols;
-int fileSize;
-int cursorX, cursorY = 0;
+// Some very important variables
+char *fileMem; // The actual file in Memory
+int fileSize; // The size of the loaded file in Bytes
+int rows, cols; // The size of the terminal in characters (e.g. 80x25)
+int cursorX, cursorY = 0; // The current position of the cursor
+						  // relative to the first character of the file
 
-// Redraw the entire screen relative to the current cursor position
+// Redraw the entire screen relative to start of file
+// TODO: Figure out some way to format the file based on the lines,
+// To make it easier to draw the screen without going through the entire file
 int printScreen() {
 	// Clear the Screen
 	printf("\x1b[2J");
+	int x = 1;
+	int y = 1;
 	// Draw that shit
-	int x,y = 1;
-	for (int i = 0; i <= fileSize; i++) {
+	for (int i = 0; i < fileSize; i++) {
 		if (y <= rows) {
 			if (fileMem[i] == '\n') {
 				y++;
