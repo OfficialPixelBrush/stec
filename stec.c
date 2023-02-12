@@ -145,8 +145,6 @@ int decodeKeycodes() {
   }
 }
 #endif
-
-// Functions shared by Windows and Linux
 // Past this, I wrote everything
 
 // Get Size of File
@@ -161,11 +159,11 @@ int fsize(FILE *fp){
 // Redraw the entire screen relative to start of file
 // TODO: Figure out some way to format the file based on the lines,
 // To make it easier to draw the screen without going through the entire file
-int printScreen() {
+int printScreenAtZero() {
 	// Clear the Screen
 	printf("\x1b[2J");
 	int x = 1;
-	int y = 2;
+	int y = 1;
 	// Draw that shit
 	for (int i = 0; i < fileSize; i++) {
 		// Check if y is larger than the max number of rows possible
@@ -191,6 +189,38 @@ int printScreen() {
 	}
 }
 
+// Print the Screen with offset defined by cursor position
+int printScreen() {
+	// Clear the Screen
+	printf("\x1b[2J");
+	int x = 1;
+	int y = 1;
+	// Draw that shit
+	for (int i = 0; i < fileSize; i++) {
+		// Check if y is larger than the max number of rows possible
+		if (y <= rows) {
+			// If you encounter a new-line, go to the next line
+			switch(fileMem[i]) {
+				case 9: // Tab
+					x += 4;
+					break;
+				case '\n': // New-line 
+					y++;
+					x = 1;
+					break;
+				default:
+					printf("\x1b[%u;%uH",y,x);
+					putchar(fileMem[i]);
+					x++;
+					break;
+			}
+		} else {
+			break;
+		}
+	}
+}
+
+// Place the cursor at the specified x,y screen coorindate
 int placeCursor() {
 	if (cursorX < 1) {
 		cursorX = 1;
@@ -199,6 +229,7 @@ int placeCursor() {
 	if (cursorY < 1) {
 		cursorY = 1;
 	}
+	
 	printf("\x1b[%u;%uH", cursorY%rows, cursorX%cols);
 	return 0;
 }
@@ -220,6 +251,7 @@ int typeCharacter(char character, char character2) {
 	printScreen();*/
 }
 	
+// Main Program function
 int main(int argc, char *argv[]) {
 	// Figure out the Terminal Size
     get_terminal_size(&rows, &cols);
@@ -253,10 +285,9 @@ int main(int argc, char *argv[]) {
 	fileSize = fsize(fptr);
 	printf("File is %dB Big",fileSize);
 	
-	// Allocate the memory for the file
-	fileMem = malloc (fileSize);
+	//fileMem = malloc (fileSize);
 	// Read the file into Memory
-    fread (fileMem, 1, fileSize, fptr);
+    //fread (fileMem, 1, fileSize, fptr);
 	
 	/* Debug code for printing the entire file
 	int i = 0;
@@ -288,6 +319,9 @@ int main(int argc, char *argv[]) {
 		 * I know it's a cursed solution, but it's simple and good enough
 		 * for my needs.
 		 */
+		 
+		 // Check for screen movement
+		 
 		switch(currentCharacter) {
 			case 9: // Tab
 				cursorX += 4;
@@ -312,6 +346,7 @@ int main(int argc, char *argv[]) {
 				cursorX--;
 				break;
 			default: // Handling for literally anything else
+				//printScreen();
 				// This code is bullshit and I can't figure out how to resize an array
 				/*printf("%c",currentCharacter);
 				fileSize++;
@@ -326,6 +361,7 @@ int main(int argc, char *argv[]) {
 				//printf("%d\n", currentCharacter);
 				break;
 		}
+		// Use 9 to exit
 		if (currentCharacter == '9') {
 			running = 0;
 		}
