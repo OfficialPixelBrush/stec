@@ -175,7 +175,7 @@ int printScreen() {
 				case 9: // Tab
 					x += 4;
 					break;
-				case 13: // New-line 
+				case '\n': // New-line 
 					y++;
 					x = 1;
 					break;
@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
 				break;
 			default: // Handling for literally anything else
 				// This code is bullshit and I can't figure out how to resize an array
-				printf("%c",currentCharacter);
+				/*printf("%c",currentCharacter);
 				fileSize++;
 				fileMem = (char *) realloc(fileMem, fileSize);
 				for (int i = fileSize - 1; i >= cursorX; i--) {
@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
 				fileMem[cursorX-1] = currentCharacter;
 				cursorX++;
 				printScreen(cursorX,cursorY);
-				// So fucken close to just using C++
+				// So fucken close to just using C++*/
 				//printf("%d\n", currentCharacter);
 				break;
 		}
