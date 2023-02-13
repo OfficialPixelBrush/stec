@@ -173,22 +173,14 @@ typedef struct node {
     struct node * next;
 } node_t;
 
-void printFirstNode(node_t *head) {
-  if (head == NULL) {
-    printf("No node found.\n");
-    return;
-  }
-
-  printf("%s\n", head->lineptr);
-}
-
+// Get node at index
 node_t *get_node_at_index(node_t *head, unsigned long int index) {
-  node_t *current = head;
-  for (unsigned long int i = 0; i < index; i++) {
-    if (current->next == NULL) {
-      return NULL; // Index is out of bounds
+  node_t *current = head; // Load in the currently viewed node
+  for (unsigned long int i = 0; i < index; i++) { 
+    if (current->next == NULL) { // Iterate over all the nodes until the relevant node is reached
+      return NULL; // If index is out of bounds, return NULL
     }
-    current = current->next;
+    current = current->next; // Move to next index if one is found
   }
   return current;
 }

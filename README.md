@@ -8,6 +8,7 @@
  Ctrl+Z to undo. Ctrl+Y to redo. Ctrl+S to save.
 
 # TODO
+- [x] Make reading files possible
 - [ ] Make typing possible
 - [ ] Make saving possible
 - [ ] Just make it better
@@ -20,3 +21,7 @@
 - Work on both Windows and Linux without any conessions
 - Avoid platform specific code unless absolutely necessary
 - Work without any third-party libraries that most compilers or environments don't come with
+
+# How it works:
+First the loaded file is split up based on it's lines.
+These lines are saved in the form of a Linked List.
