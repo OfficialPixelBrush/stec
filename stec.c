@@ -12,7 +12,6 @@
 #include <string.h>
 
 // Some very important variables
-unsigned char *fileMem; // The actual file in Memory
 unsigned int fileSize; // The size of the loaded file in Bytes
 unsigned int rows, cols; // The size of the terminal in characters (e.g. 80x25)
 unsigned int cursorX, cursorY = 1; // The current position of the cursor relative to the first character of the file
@@ -147,6 +146,54 @@ int decodeKeycodes() {
 #endif
 // Past this, I wrote everything
 
+// Linked list Implementation and how files are loaded
+/* Say we have a simple file with 3 lines of text:
+ * Line 1\n
+ * Line 2\n
+ * Line 3
+ *
+ * The file will be split into it's individual lines.
+ * Those lines will be loaded as part of a linked list,
+ * where each line is part of one element.
+ * Inside each of these elements, the actual text resides in an array.
+ * So our document is stored as follows:
+ * nodeL1
+ *	  \_*lineptr -> (points to array for line 1)
+ *      *nextNode -> nodeL2;
+ * nodeL2
+ *    \_*lineptr -> (points to array for line 2)
+ *      *nextNode -> nodeL3;
+ * nodeL3
+ *    \_*lineptr -> (points to array for line 3)
+ *      *nextNode -> null;
+ * The size of the line arrays are changed using typical array resizing operations.
+ */
+typedef struct node {
+    unsigned char *lineptr;
+    struct node * next;
+} node_t;
+
+void printFirstNode(node_t *head) {
+  if (head == NULL) {
+    printf("No node found.\n");
+    return;
+  }
+
+  printf("%s\n", head->lineptr);
+}
+
+node_t *get_node_at_index(node_t *head, unsigned long int index) {
+  node_t *current = head;
+  for (unsigned long int i = 0; i < index; i++) {
+    if (current->next == NULL) {
+      return NULL; // Index is out of bounds
+    }
+    current = current->next;
+  }
+  return current;
+}
+
+
 // Get Size of File
 int fsize(FILE *fp){
     int prev=ftell(fp);
@@ -156,66 +203,20 @@ int fsize(FILE *fp){
     return sz;
 }
 
-// Redraw the entire screen relative to start of file
-// TODO: Figure out some way to format the file based on the lines,
-// To make it easier to draw the screen without going through the entire file
-int printScreenAtZero() {
+// Redraw the entire screen
+int printScreen(node_t *head) {
 	// Clear the Screen
 	printf("\x1b[2J");
-	int x = 1;
-	int y = 1;
-	// Draw that shit
-	for (int i = 0; i < fileSize; i++) {
-		// Check if y is larger than the max number of rows possible
-		if (y <= rows) {
-			// If you encounter a new-line, go to the next line
-			switch(fileMem[i]) {
-				case 9: // Tab
-					x += 4;
-					break;
-				case '\n': // New-line 
-					y++;
-					x = 1;
-					break;
-				default:
-					printf("\x1b[%u;%uH",y,x);
-					putchar(fileMem[i]);
-					x++;
-					break;
+	for (int y = 1; y <= rows; y++) {
+		node_t *current = get_node_at_index(head,y-1);
+		printf("\x1b[%u;%uH", y, 1);
+		for (int x = 1; x <= cols; x++) { 
+			char character = current->lineptr[x-1];
+			if (character != 0) {
+				printf("%c", character);
+			} else {
+				break;
 			}
-		} else {
-			break;
-		}
-	}
-}
-
-// Print the Screen with offset defined by cursor position
-int printScreen() {
-	// Clear the Screen
-	printf("\x1b[2J");
-	int x = 1;
-	int y = 1;
-	// Draw that shit
-	for (int i = 0; i < fileSize; i++) {
-		// Check if y is larger than the max number of rows possible
-		if (y <= rows) {
-			// If you encounter a new-line, go to the next line
-			switch(fileMem[i]) {
-				case 9: // Tab
-					x += 4;
-					break;
-				case '\n': // New-line 
-					y++;
-					x = 1;
-					break;
-				default:
-					printf("\x1b[%u;%uH",y,x);
-					putchar(fileMem[i]);
-					x++;
-					break;
-			}
-		} else {
-			break;
 		}
 	}
 }
@@ -240,16 +241,8 @@ int typeCharacter(char character, char character2) {
 	// Make space in the array for a character/
 	// Insert the Character
 	// TODO: Figure this shit out
-	/*
-	fileSize++;
-	fileMem = realloc(fileMem, fileSize); // reallocations until size settles
-	int i;
-	int pos = 0; // Later to be replaced by x,y position
-    for (i = fileSize; i >= pos; i--)
-        fileMem[i] = fileMem[i - 1];
-	fileMem[pos] = character;
-	printScreen();*/
 }
+
 	
 // Main Program function
 int main(int argc, char *argv[]) {
@@ -265,43 +258,81 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 	
-	// ****** Load file into Memory ****** 
-	/* While this is worse for large files,
-	* A) we're only dealing with smaller files here
-	* B) nano and vi seem to do this too, and nobody's complaining
-	* C) it's faster than accessing the hard drive repeatedly
-	*/
-	
+	// ****** Load file into Memory ****** 	
 	// Load the file
 	FILE *fptr;
 	// Best to check if the file doesn't exist when loading it in
 	if ((fptr = fopen(argv[1],"rb")) == NULL) {
-		printf("File doesn't exist!");   
+		printf("File doesn't exist!\n");   
 		// Routine for creating a file that doesn't yet exist will go here
 		exit(1);             
 	}
 	
 	// Get Filesize to determine array size
 	fileSize = fsize(fptr);
-	printf("File is %dB Big",fileSize);
+	printf("File is %dB Big\n",fileSize);
 	
-	//fileMem = malloc (fileSize);
 	// Read the file into Memory
-    //fread (fileMem, 1, fileSize, fptr);
-	
-	/* Debug code for printing the entire file
-	int i = 0;
-	while(fileMem[i] != NULL) {
-		printf("%c", fileMem[i]);
-		i++;
-	}*/
+	/* Read chars until new-line is hit
+	 * Example:
+	 * Line 1\n<- Line end found!
+	 * 
+	 * Load from start of line until new-line into string
+	 */	
+	node_t * head = (node_t *) malloc(sizeof(node_t)); // Allocate space for head node
+	if (head == NULL) {
+		printf("Head node allocation error\n");
+		return 1;
+	}
+	head->lineptr = NULL;
+	head->next = NULL;
+
+	// Load other chars
+	unsigned long int lineStart = 0;
+	unsigned long int lineEnd = 0;
+	node_t *current = head;
+	for (unsigned long int i = 0; i <= fileSize; i++) {
+		unsigned char character = fgetc(fptr);
+		// TODO: The last line won't render, probably because it doesn't have a new-line character
+		// Attached to it, signaling it's the end of a line. Using EOF doesn't seem to do anything here.
+		// Hacky Fix: Checking if i >= fileSize.
+		if ( (character == '\n') || (i>=fileSize) ) {
+			lineEnd = i; // Set end of current line
+			// Allocate memory for line, including the null terminator
+			char *arrayPtr = malloc(lineEnd - lineStart + 1);
+			if (arrayPtr == NULL) {
+				printf("Line allocation error\n");
+				return 1;
+			}
+
+			fseek(fptr, lineStart, SEEK_SET); // Read from start of line
+			for (unsigned long int j = lineStart; j <= lineEnd; j++) { // Iterate over line and copy into array
+				arrayPtr[j - lineStart] = fgetc(fptr);
+			}
+			arrayPtr[lineEnd - lineStart] = 0; // Set the null terminator
+			
+			// Create new node
+			current->lineptr = arrayPtr; // Point to new string
+			node_t *newNode = (node_t *) malloc(sizeof(node_t)); // Allocate space for new node
+			if (newNode == NULL) { // Error Check
+				printf("New node allocation error\n");
+				return 1;
+			}
+			current->next = newNode; // Point to new node
+			newNode->next = NULL;
+			current = newNode;
+			lineStart = i+1; // Set start of next line
+		}
+	}
+	// Done loading the file
+	fclose(fptr);  // Close the filestream
 	
 	// ****** Init the Screen ****** 
 	// Disablecharacter echo and buffering
 	disable_echo_and_buffering(fptr);
 	// Print until width of tty is reached, then read until next new-line
 	printf("\x1b[0m");
-	printScreen(cursorX,cursorY);
+	printScreen(head);
 	// Reset Cursor
 	printf("\x1b[H");
 	
@@ -373,8 +404,7 @@ int main(int argc, char *argv[]) {
 	// 
 	
 	// Close Application
-	free(fileMem); // Remove the file from memory
-	fclose(fptr);  // Close the filestream
+	// TODO: Free memory from the nodes
 	printf("\x1b[0m"); // Reset Colors etc
 	enable_echo_and_buffering(); // Re-enable echo and buffering
 	return 0;
