@@ -14,7 +14,8 @@
 // Some very important variables
 unsigned int fileSize; // The size of the loaded file in Bytes
 unsigned int rows, cols; // The size of the terminal in characters (e.g. 80x25)
-unsigned int cursorX, cursorY = 1; // The current position of the cursor relative to the first character of the file
+unsigned int cursorX, cursorY = 0; // The current position of the cursor on-screen
+unsigned int currentRow, currentCollumn = 0; // The current position of the cursor relative to the first character of the file
 unsigned char running = 1;
 
 // I hate myself for wanting this on both Linux and Windows
@@ -197,11 +198,12 @@ int fsize(FILE *fp){
 
 // Redraw the entire screen
 int printScreen(node_t *head) {
+	printf("\x1b[?25l");
 	// Clear the Screen
-	printf("\x1b[2J");
 	for (int y = 1; y <= rows; y++) {
 		node_t *current = get_node_at_index(head,y-1);
 		printf("\x1b[%u;%uH", y, 1);
+		printf("\x1b[2K");
 		for (int x = 1; x <= cols; x++) { 
 			char character = current->lineptr[x-1];
 			if (character != 0) {
@@ -211,6 +213,7 @@ int printScreen(node_t *head) {
 			}
 		}
 	}
+	printf("\x1b[?25h");
 }
 
 // Place the cursor at the specified x,y screen coorindate
@@ -223,7 +226,7 @@ int placeCursor() {
 		cursorY = 1;
 	}
 	
-	printf("\x1b[%u;%uH", cursorY%rows, cursorX%cols);
+	printf("\x1b[%u;%uH", 1, cursorX%cols);
 	return 0;
 }
 
@@ -329,6 +332,7 @@ int main(int argc, char *argv[]) {
 	printf("\x1b[H");
 	
 	// This loop is for testing only
+	// TODO: Make use of currentCollumn and currentRow for cursor positioning
 	while(running) { 
 		// Place cursor where it should be according to page
 		placeCursor();
@@ -344,7 +348,6 @@ int main(int argc, char *argv[]) {
 		 */
 		 
 		 // Check for screen movement
-		 
 		switch(currentCharacter) {
 			case 9: // Tab
 				cursorX += 4;
@@ -353,35 +356,41 @@ int main(int argc, char *argv[]) {
 				cursorY++;
 				break;
 			case 17: // Up Arrow
-				// printf("\x1b[1A");
 				cursorY--;
+				printScreen(head);
 				break;
 			case 18: // Down Arrow
-				// printf("\x1b[1B");
 				cursorY++;
+				printScreen(head);
 				break;
 			case 19: // Right Arrow
-				// printf("\x1b[1C");
 				cursorX++;
 				break;
 			case 20: // Left Arrow
-				// printf("\x1b[1D");
 				cursorX--;
 				break;
-			default: // Handling for literally anything else
-				//printScreen();
-				// This code is bullshit and I can't figure out how to resize an array
-				/*printf("%c",currentCharacter);
-				fileSize++;
-				fileMem = (char *) realloc(fileMem, fileSize);
-				for (int i = fileSize - 1; i >= cursorX; i--) {
-					fileMem[i + 1] = fileMem[i];
+			case 71: // Home
+				cursorX = 0;
+				break;
+			case 73: // Up Page
+				cursorY -= rows;
+				printScreen(head);
+				break;
+			case 81: // Down Page
+				cursorY += rows;
+				printScreen(head);
+				break;
+			// TODO: Figure out end
+			/*case 79: // End 
+				for (int i = 0; i >= 1000; i++) {
+					if (get_node_at_index(head,cursorY-1)->lineptr[i] == 0) {
+						cursorX = i;
+						break;
+					}
 				}
-				fileMem[cursorX-1] = currentCharacter;
-				cursorX++;
-				printScreen(cursorX,cursorY);
-				// So fucken close to just using C++*/
-				//printf("%d\n", currentCharacter);
+				break;*/
+			default: // Handling for literally anything else
+				
 				break;
 		}
 		// Use 9 to exit
