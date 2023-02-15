@@ -201,16 +201,23 @@ int printScreen(node_t *head) {
 	printf("\x1b[?25l");
 	// Clear the Screen
 	for (int y = 1; y <= rows; y++) {
-		node_t *current = get_node_at_index(head,y-1);
+		node_t *current = get_node_at_index(head,y-1+cursorY);
 		printf("\x1b[%u;%uH", y, 1);
 		printf("\x1b[2K");
-		for (int x = 1; x <= cols; x++) { 
-			char character = current->lineptr[x-1];
-			if (character != 0) {
-				printf("%c", character);
-			} else {
-				break;
+		// Temp test to have line numbers
+		//printf("%d ",y-1+cursorY);
+		//printf("\x1b[%u;%uH", y, 5);
+		if (current != NULL) {
+			for (int x = 1; x <= cols; x++) { 
+				char character = current->lineptr[x-1];
+				if (character != 0) {
+					printf("%c", character);
+				} else {
+					break;
+				}
 			}
+		} else {
+			printf("NaN"); // Debug Purposes
 		}
 	}
 	printf("\x1b[?25h");
@@ -222,8 +229,8 @@ int placeCursor() {
 		cursorX = 1;
 	}
 	
-	if (cursorY < 1) {
-		cursorY = 1;
+	if (cursorY < 0) {
+		cursorY = 0;
 	}
 	
 	printf("\x1b[%u;%uH", 1, cursorX%cols);
@@ -241,27 +248,39 @@ int typeCharacter(char character, char character2) {
 	
 // Main Program function
 int main(int argc, char *argv[]) {
-	// Figure out the Terminal Size
-    get_terminal_size(&rows, &cols);
-    printf("The terminal size is %d rows by %d columns.\n", rows, cols);
-	// This is here as a debug feature, just to check if I'm dumb
-	
-	// Argunent related parameters
-	// I'll put shit like help params and stuff here	
-	if (argc < 1) {
-		printf("Too few arguments!\n");
-		return 1;
-	}
 	
 	// ****** Load file into Memory ****** 	
 	// Load the file
 	FILE *fptr;
 	// Best to check if the file doesn't exist when loading it in
-	if ((fptr = fopen(argv[1],"rb")) == NULL) {
-		printf("File doesn't exist!\n");   
-		// Routine for creating a file that doesn't yet exist will go here
-		exit(1);             
-	}
+	
+	// Shoutout to http://users.cms.caltech.edu/~mvanier/CS11_C/misc/cmdline_args.html
+	for (int i = 1; i < argc; i++) {  /* Skip argv[0] (program name). */
+    /*
+     * Use the 'strcmp' function to compare the argv values
+     * to a string of your choice (here, it's the optional
+     * argument "-q").  When strcmp returns 0, it means that the
+     * two strings are identical.
+     */
+    if (strcmp(argv[i], "-h") == 0)  /* Process optional arguments. */
+    {
+        printf("stec <filename>\n");
+		return 0;
+    }
+    else
+    {
+		if ((fptr = fopen(argv[i],"rb")) == NULL) {
+			printf("File doesn't exist!\n");   
+			// Routine for creating a file that doesn't yet exist will go here
+			exit(1);             
+		}
+    }
+}
+	
+	// Figure out the Terminal Size
+    get_terminal_size(&rows, &cols);
+    printf("The terminal size is %d rows by %d columns.\n", rows, cols);
+	// This is here as a debug feature, just to check if I'm dumb
 	
 	// Get Filesize to determine array size
 	fileSize = fsize(fptr);
@@ -286,12 +305,12 @@ int main(int argc, char *argv[]) {
 	unsigned long int lineStart = 0;
 	unsigned long int lineEnd = 0;
 	node_t *current = head;
-	for (unsigned long int i = 0; i <= fileSize; i++) {
+	for (unsigned long int i = 0; i < fileSize; i++) {
 		unsigned char character = fgetc(fptr);
 		// TODO: The last line won't render, probably because it doesn't have a new-line character
 		// Attached to it, signaling it's the end of a line. Using EOF doesn't seem to do anything here.
 		// Hacky Fix: Checking if i >= fileSize.
-		if ( (character == '\n') || (i>=fileSize) ) {
+		if ( (character == '\n') || (i>fileSize) ) {
 			lineEnd = i; // Set end of current line
 			// Allocate memory for line, including the null terminator
 			char *arrayPtr = malloc(lineEnd - lineStart + 1);
