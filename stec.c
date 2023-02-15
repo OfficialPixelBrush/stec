@@ -13,9 +13,8 @@
 
 // Some very important variables
 unsigned int fileSize; // The size of the loaded file in Bytes
-unsigned int rows, cols; // The size of the terminal in characters (e.g. 80x25)
-unsigned int cursorX, cursorY = 0; // The current position of the cursor on-screen
-unsigned int currentRow, currentCollumn = 0; // The current position of the cursor relative to the first character of the file
+int rows, cols; // The size of the terminal in characters (e.g. 80x25)
+long int currentRow, currentCollumn = 0; // The current position of the cursor relative to the first character of the file
 unsigned char running = 1;
 
 // I hate myself for wanting this on both Linux and Windows
@@ -176,14 +175,19 @@ typedef struct node {
 
 // Get node at index
 node_t *get_node_at_index(node_t *head, unsigned long int index) {
-  node_t *current = head; // Load in the currently viewed node
-  for (unsigned long int i = 0; i < index; i++) { 
-    if (current->next == NULL) { // Iterate over all the nodes until the relevant node is reached
-      return NULL; // If index is out of bounds, return NULL
-    }
-    current = current->next; // Move to next index if one is found
-  }
-  return current;
+	if (head != NULL) {
+		node_t *current = head; // Load in the currently viewed node
+		for (unsigned long int i = 0; i < index; i++) { 
+			if (current->next == NULL) { // Iterate over all the nodes until the relevant node is reached
+				return NULL; // If index is out of bounds, return NULL
+			}
+				current = current->next; // Move to next index if one is found
+			}
+		return current;
+	} else {
+		printf("WRONG\n");
+		return NULL;
+	}
 }
 
 
@@ -198,15 +202,12 @@ int fsize(FILE *fp){
 
 // Redraw the entire screen
 int printScreen(node_t *head) {
-	printf("\x1b[?25l");
+	printf("\x1b[?25l"); // Turn off cursor
 	// Clear the Screen
-	for (int y = 1; y <= rows; y++) {
-		node_t *current = get_node_at_index(head,y-1+cursorY);
+	for (int y = 1; y <= rows; ++y) {
+		node_t *current = get_node_at_index(head,y+currentRow-rows/2);
 		printf("\x1b[%u;%uH", y, 1);
 		printf("\x1b[2K");
-		// Temp test to have line numbers
-		//printf("%d ",y-1+cursorY);
-		//printf("\x1b[%u;%uH", y, 5);
 		if (current != NULL) {
 			for (int x = 1; x <= cols; x++) { 
 				char character = current->lineptr[x-1];
@@ -217,29 +218,31 @@ int printScreen(node_t *head) {
 				}
 			}
 		} else {
-			printf("NaN"); // Debug Purposes
+			// Debug Purposes
 		}
 	}
-	printf("\x1b[?25h");
+	printf("\x1b[?25h"); // Enable Cursor
+	return 0;
+}
+
+// Run checks to make sure cursor hasn't escaped bounds
+int cursorChecks(node_t *head) {
+	if (currentRow < 0) {
+		currentRow = 10;
+	}
+	printf("%d", currentRow);
+	return 0;
 }
 
 // Place the cursor at the specified x,y screen coorindate
-int placeCursor() {
-	if (cursorX < 1) {
-		cursorX = 1;
-	}
-	
-	if (cursorY < 0) {
-		cursorY = 0;
-	}
-	
-	printf("\x1b[%u;%uH", 1, cursorX%cols);
+int placeCursor() {	
+	printf("\x1b[%u;%uH", rows/2, currentCollumn+1);
 	return 0;
 }
 
 // Type a single character
-int typeCharacter(char character, char character2) {
-	// Set cursor position to reflect cursorX and cursorY
+int typeCharacter(char character) {
+	// Set cursor position to reflect currentCollumn and currentRow
 	// Make space in the array for a character/
 	// Insert the Character
 	// TODO: Figure this shit out
@@ -342,7 +345,7 @@ int main(int argc, char *argv[]) {
 	fclose(fptr);  // Close the filestream
 	
 	// ****** Init the Screen ****** 
-	// Disablecharacter echo and buffering
+	// Disable  character echo and buffering
 	disable_echo_and_buffering(fptr);
 	// Print until width of tty is reached, then read until next new-line
 	printf("\x1b[0m");
@@ -365,63 +368,69 @@ int main(int argc, char *argv[]) {
 		 * I know it's a cursed solution, but it's simple and good enough
 		 * for my needs.
 		 */
-		 
 		 // Check for screen movement
+		// TODO: Make a general method for moving the cursor
 		switch(currentCharacter) {
 			case 9: // Tab
-				cursorX += 4;
+				// TODO: Create Tab function
+				currentCollumn += 4;
 				break;
 			case 13: // New-line
-				cursorY++;
+				// TODO: Create New-line function
+				//createNewLine();
 				break;
 			case 17: // Up Arrow
-				cursorY--;
-				printScreen(head);
+				if (currentRow != 0) {
+					currentRow--;
+				}
 				break;
 			case 18: // Down Arrow
-				cursorY++;
-				printScreen(head);
+				// TODO: Keep track of the number of lines for limiting scrolling
+				currentRow++;
 				break;
 			case 19: // Right Arrow
-				cursorX++;
+				currentCollumn++;
 				break;
 			case 20: // Left Arrow
-				cursorX--;
+				if (currentCollumn != 0) {
+					currentCollumn--;
+				}
 				break;
 			case 71: // Home
-				cursorX = 0;
+				currentCollumn = 0;
 				break;
 			case 73: // Up Page
-				cursorY -= rows;
-				printScreen(head);
+				if (currentRow - rows >= 0) {
+					currentRow -= rows;
+				} else {
+					currentRow = 0;
+				}
 				break;
 			case 81: // Down Page
-				cursorY += rows;
-				printScreen(head);
+				currentRow += rows;
 				break;
 			// TODO: Figure out end
 			/*case 79: // End 
 				for (int i = 0; i >= 1000; i++) {
-					if (get_node_at_index(head,cursorY-1)->lineptr[i] == 0) {
-						cursorX = i;
+					if (get_node_at_index(head,currentRow-1)->lineptr[i] == 0) {
+						currentCollumn = i;
 						break;
 					}
 				}
 				break;*/
 			default: // Handling for literally anything else
-				
+				// TODO: Print Characters already
 				break;
 		}
+		// Check if there's enough of a reason to update the screen
+		//checkIfReRenderNecessary();
+		printScreen(head);
+		
 		// Use 9 to exit
 		if (currentCharacter == '9') {
 			running = 0;
 		}
 	}
-	
-	// Determine Cursor Position
-	// Determine position in File based on Cursor Position
-	// Draw screen based on cursor position
-	// 
 	
 	// Close Application
 	// TODO: Free memory from the nodes
