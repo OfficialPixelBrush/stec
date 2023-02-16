@@ -244,6 +244,7 @@ int typeCharacter(char character) {
 	// TODO: Figure this shit out
 }
 	
+// TODO: Put most of these into their own functions
 // Main Program function
 int main(int argc, char *argv[]) {
 	
@@ -292,6 +293,7 @@ int main(int argc, char *argv[]) {
 	 * Load from start of line until new-line into string
 	 */	
 	node_t * head = (node_t *) malloc(sizeof(node_t)); // Allocate space for head node
+	node_t * currentNode;
 	if (head == NULL) {
 		printf("Head node allocation error\n");
 		return 1;
@@ -349,6 +351,10 @@ int main(int argc, char *argv[]) {
 	printScreen(head);
 	// Reset Cursor
 	printf("\x1b[H");
+	
+	// For starting, place the currentNode to be start
+	// TODO: Implement the currentNode System properly
+	currentNode = head;
 	
 	// This loop is for testing only
 	// TODO: Make use of currentCollumn and currentRow for cursor positioning
