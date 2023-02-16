@@ -16,6 +16,7 @@ unsigned int fileSize; // The size of the loaded file in Bytes
 int rows, cols; // The size of the terminal in characters (e.g. 80x25)
 long int currentRow, currentCollumn = 0; // The current position of the cursor relative to the first character of the file
 unsigned char running = 1;
+unsigned long int maxRows = 0;
 
 // I hate myself for wanting this on both Linux and Windows
 // And that I'm refusing to use ncurses or similar
@@ -170,6 +171,7 @@ int decodeKeycodes() {
  */
 typedef struct node {
     unsigned char *lineptr;
+	unsigned int linelength;
     struct node * next;
 } node_t;
 
@@ -202,6 +204,7 @@ int fsize(FILE *fp){
 
 // Redraw the entire screen
 int printScreen(node_t *head) {
+	char character;
 	printf("\x1b[?25l"); // Turn off cursor
 	// Clear the Screen
 	for (int y = 1; y <= rows; ++y) {
@@ -210,11 +213,13 @@ int printScreen(node_t *head) {
 		printf("\x1b[2K");
 		if (current != NULL) {
 			for (int x = 1; x <= cols; x++) { 
-				char character = current->lineptr[x-1];
-				if (character != 0) {
-					printf("%c", character);
-				} else {
-					break;
+				if (current->lineptr != NULL) { 
+					character = current->lineptr[x-1];
+					if (character != 0) {
+						printf("%c", character);
+					} else {
+						break;
+					}
 				}
 			}
 		} else {
@@ -222,15 +227,6 @@ int printScreen(node_t *head) {
 		}
 	}
 	printf("\x1b[?25h"); // Enable Cursor
-	return 0;
-}
-
-// Run checks to make sure cursor hasn't escaped bounds
-int cursorChecks(node_t *head) {
-	if (currentRow < 0) {
-		currentRow = 10;
-	}
-	printf("%d", currentRow);
 	return 0;
 }
 
@@ -247,7 +243,6 @@ int typeCharacter(char character) {
 	// Insert the Character
 	// TODO: Figure this shit out
 }
-
 	
 // Main Program function
 int main(int argc, char *argv[]) {
@@ -308,12 +303,12 @@ int main(int argc, char *argv[]) {
 	unsigned long int lineStart = 0;
 	unsigned long int lineEnd = 0;
 	node_t *current = head;
-	for (unsigned long int i = 0; i < fileSize; i++) {
+	for (unsigned long int i = 0; i <= fileSize; i++) {
 		unsigned char character = fgetc(fptr);
 		// TODO: The last line won't render, probably because it doesn't have a new-line character
 		// Attached to it, signaling it's the end of a line. Using EOF doesn't seem to do anything here.
 		// Hacky Fix: Checking if i >= fileSize.
-		if ( (character == '\n') || (i>fileSize) ) {
+		if ( (character == '\n') || (i>=fileSize)  || (character == EOF) ) {
 			lineEnd = i; // Set end of current line
 			// Allocate memory for line, including the null terminator
 			char *arrayPtr = malloc(lineEnd - lineStart + 1);
@@ -327,6 +322,7 @@ int main(int argc, char *argv[]) {
 				arrayPtr[j - lineStart] = fgetc(fptr);
 			}
 			arrayPtr[lineEnd - lineStart] = 0; // Set the null terminator
+			maxRows++; // Increase number of max rows in file
 			
 			// Create new node
 			current->lineptr = arrayPtr; // Point to new string
@@ -335,6 +331,7 @@ int main(int argc, char *argv[]) {
 				printf("New node allocation error\n");
 				return 1;
 			}
+			newNode->linelength = lineEnd-lineStart; // Get size of line for convenience
 			current->next = newNode; // Point to new node
 			newNode->next = NULL;
 			current = newNode;
@@ -386,10 +383,14 @@ int main(int argc, char *argv[]) {
 				break;
 			case 18: // Down Arrow
 				// TODO: Keep track of the number of lines for limiting scrolling
-				currentRow++;
+				if (currentRow<maxRows-1) {
+					currentRow++;
+				}
 				break;
 			case 19: // Right Arrow
-				currentCollumn++;
+				//if (currentCollumn+1 < get_node_at_index(head,currentRow)->linelength) {
+					currentCollumn++;
+				//}
 				break;
 			case 20: // Left Arrow
 				if (currentCollumn != 0) {
@@ -407,7 +408,12 @@ int main(int argc, char *argv[]) {
 				}
 				break;
 			case 81: // Down Page
-				currentRow += rows;
+				if (currentRow + rows > maxRows-1) {
+					currentRow = maxRows-1;
+
+				} else {
+					currentRow += rows;
+				}
 				break;
 			// TODO: Figure out end
 			/*case 79: // End 
