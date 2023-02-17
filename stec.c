@@ -172,26 +172,9 @@ int decodeKeycodes() {
 typedef struct node {
     unsigned char *lineptr;
 	unsigned int linelength;
+    struct node * prev;
     struct node * next;
 } node_t;
-
-// Get node at index
-node_t *get_node_at_index(node_t *head, unsigned long int index) {
-	if (head != NULL) {
-		node_t *current = head; // Load in the currently viewed node
-		for (unsigned long int i = 0; i < index; i++) { 
-			if (current->next == NULL) { // Iterate over all the nodes until the relevant node is reached
-				return NULL; // If index is out of bounds, return NULL
-			}
-				current = current->next; // Move to next index if one is found
-			}
-		return current;
-	} else {
-		printf("WRONG\n");
-		return NULL;
-	}
-}
-
 
 // Get Size of File
 int fsize(FILE *fp){
@@ -204,28 +187,57 @@ int fsize(FILE *fp){
 
 // Redraw the entire screen
 int printScreen(node_t *head) {
-	char character;
 	printf("\x1b[?25l"); // Turn off cursor
-	// Clear the Screen
-	for (int y = 1; y <= rows; ++y) {
-		node_t *current = get_node_at_index(head,y+currentRow-rows/2);
+	
+	char character;
+	int rowsHalf = rows/2;
+	node_t *current = head;	
+	
+	// Iterate over bottom part of the screen
+	for (int y = rowsHalf; y <= rows; y++) {
+		// Position Cursor
 		printf("\x1b[%u;%uH", y, 1);
+		// Clear line
 		printf("\x1b[2K");
-		if (current != NULL) {
+		if ((current != NULL) && (current->lineptr != NULL)) {
 			for (int x = 1; x <= cols; x++) { 
-				if (current->lineptr != NULL) { 
-					character = current->lineptr[x-1];
-					if (character != 0) {
-						printf("%c", character);
-					} else {
-						break;
-					}
+				character = current->lineptr[x-1];
+				if (character != 0) {
+					putchar(character);
+				} else {
+					break;
 				}
 			}
-		} else {
-			// Debug Purposes
 		}
+		current = current -> next;
 	}
+	
+	// TODO: Get this to work. Previous lines are being weird for no reason
+	current = head; // Re-center head
+	// Iterate over top part of the screen
+	for (int y = rowsHalf; y <= 1; y--) {
+		// Position Cursor
+		printf("\x1b[%u;%uH", y, 1);
+		// Clear line
+		printf("\x1b[2K");
+		if ((current != NULL) && (current->lineptr != NULL)) {
+			for (int x = 1; x <= cols; x++) { 
+				character = current->lineptr[x-1];
+				if (character != 0) {
+					putchar(character);
+				} else {
+					break;
+				}
+			}
+		}
+		if (current -> prev != NULL) {
+			current = current -> prev;
+		} else {
+			return 0;
+		}
+		return 0;
+	}
+	
 	printf("\x1b[?25h"); // Enable Cursor
 	return 0;
 }
@@ -243,74 +255,17 @@ int typeCharacter(char character) {
 	// Insert the Character
 	// TODO: Figure this shit out
 }
-	
-// TODO: Put most of these into their own functions
-// Main Program function
-int main(int argc, char *argv[]) {
-	
-	// ****** Load file into Memory ****** 	
-	// Load the file
-	FILE *fptr;
-	// Best to check if the file doesn't exist when loading it in
-	
-	// Shoutout to http://users.cms.caltech.edu/~mvanier/CS11_C/misc/cmdline_args.html
-	for (int i = 1; i < argc; i++) {  /* Skip argv[0] (program name). */
-    /*
-     * Use the 'strcmp' function to compare the argv values
-     * to a string of your choice (here, it's the optional
-     * argument "-q").  When strcmp returns 0, it means that the
-     * two strings are identical.
-     */
-    if (strcmp(argv[i], "-h") == 0)  /* Process optional arguments. */
-    {
-        printf("stec <filename>\n");
-		return 0;
-    }
-    else
-    {
-		if ((fptr = fopen(argv[i],"rb")) == NULL) {
-			printf("File doesn't exist!\n");   
-			// Routine for creating a file that doesn't yet exist will go here
-			exit(1);             
-		}
-    }
-}
-	
-	// Figure out the Terminal Size
-    get_terminal_size(&rows, &cols);
-    printf("The terminal size is %d rows by %d columns.\n", rows, cols);
-	// This is here as a debug feature, just to check if I'm dumb
-	
-	// Get Filesize to determine array size
-	fileSize = fsize(fptr);
-	printf("File is %dB Big\n",fileSize);
-	
-	// Read the file into Memory
-	/* Read chars until new-line is hit
-	 * Example:
-	 * Line 1\n<- Line end found!
-	 * 
-	 * Load from start of line until new-line into string
-	 */	
-	node_t * head = (node_t *) malloc(sizeof(node_t)); // Allocate space for head node
-	node_t * currentNode;
-	if (head == NULL) {
-		printf("Head node allocation error\n");
-		return 1;
-	}
-	head->lineptr = NULL;
-	head->next = NULL;
 
+// Load the File into Nodes
+int loadFileIntoNodes(FILE *fptr,node_t *current) {
 	// Load other chars
 	unsigned long int lineStart = 0;
 	unsigned long int lineEnd = 0;
-	node_t *current = head;
+	node_t *previous = NULL;
 	for (unsigned long int i = 0; i <= fileSize; i++) {
 		unsigned char character = fgetc(fptr);
-		// TODO: The last line won't render, probably because it doesn't have a new-line character
-		// Attached to it, signaling it's the end of a line. Using EOF doesn't seem to do anything here.
-		// Hacky Fix: Checking if i >= fileSize.
-		if ( (character == '\n') || (i>=fileSize)  || (character == EOF) ) {
+		// Make new nodes until EOF
+		if ( (character == '\n') || (i >= fileSize) ) {
 			lineEnd = i; // Set end of current line
 			// Allocate memory for line, including the null terminator
 			char *arrayPtr = malloc(lineEnd - lineStart + 1);
@@ -327,34 +282,93 @@ int main(int argc, char *argv[]) {
 			maxRows++; // Increase number of max rows in file
 			
 			// Create new node
-			current->lineptr = arrayPtr; // Point to new string
 			node_t *newNode = (node_t *) malloc(sizeof(node_t)); // Allocate space for new node
 			if (newNode == NULL) { // Error Check
 				printf("New node allocation error\n");
 				return 1;
 			}
+			newNode->lineptr = arrayPtr; // Point to new string
 			newNode->linelength = lineEnd-lineStart; // Get size of line for convenience
-			current->next = newNode; // Point to new node
-			newNode->next = NULL;
+			newNode->prev = previous; // Point to previous node
+			newNode->next = NULL; // Define next node as NULL
+			
+			// Make the next node of the current node the new Node
+			current->next = newNode;
+			
+			// The current node is now the current node
+			previous = newNode;
+			
+			// The current node is now the next node
 			current = newNode;
 			lineStart = i+1; // Set start of next line
 		}
 	}
-	// Done loading the file
-	fclose(fptr);  // Close the filestream
+	return 0;
+}
+	
+// TODO: Put most of these into their own functions
+// Main Program function
+int main(int argc, char *argv[]) {
+	
+	// ****** Load file into Memory ****** 	
+	// Load the file
+	FILE *fptr;
+	// Best to check if the file doesn't exist when loading it in
+	
+	// Shoutout to http://users.cms.caltech.edu/~mvanier/CS11_C/misc/cmdline_args.html
+	for (int i = 1; i < argc; i++) {  /* Skip argv[0] (program name). */
+		/*
+		 * Use the 'strcmp' function to compare the argv values
+		 * to a string of your choice (here, it's the optional
+		 * argument "-q").  When strcmp returns 0, it means that the
+		 * two strings are identical.
+		 */
+		if (strcmp(argv[i], "-h") == 0) {  /* Process optional arguments. */
+			printf("stec <filename>\n");
+			return 0;
+		} else {
+			if ((fptr = fopen(argv[i],"rb")) == NULL) {
+				printf("File doesn't exist!\n");   
+				// Routine for creating a file that doesn't yet exist will go here
+				exit(1);             
+			}
+		}
+	}
+	
+	// Figure out the Terminal Size
+    get_terminal_size(&rows, &cols);
+    printf("The terminal size is %d rows by %d columns.\n", rows, cols);
+	// This is here as a debug feature, just to check if I'm dumb
+	
+	// Get Filesize to determine array size
+	fileSize = fsize(fptr);
+	printf("File is %dB Big\n",fileSize);
+	
+	// ****** Read the file into Memory ******
+	// Set up node for the currently selected line
+	node_t * current = (node_t *) malloc(sizeof(node_t)); // Allocate space for current node
+	if (current == NULL) {
+		printf("Current node allocation error\n");
+		return 1;
+	}
+	current->prev = NULL;
+	current->linelength = 0;
+	current->lineptr = NULL;
+	current->next = NULL;
+	
+	// Fill up the nodes with data
+	loadFileIntoNodes(fptr,current);
+	// Close the filestream
+	fclose(fptr); 
 	
 	// ****** Init the Screen ****** 
 	// Disable  character echo and buffering
 	disable_echo_and_buffering(fptr);
 	// Print until width of tty is reached, then read until next new-line
 	printf("\x1b[0m");
-	printScreen(head);
+	printScreen(current);
 	// Reset Cursor
 	printf("\x1b[H");
-	
-	// For starting, place the currentNode to be start
-	// TODO: Implement the currentNode System properly
-	currentNode = head;
 	
 	// This loop is for testing only
 	// TODO: Make use of currentCollumn and currentRow for cursor positioning
@@ -383,14 +397,16 @@ int main(int argc, char *argv[]) {
 				//createNewLine();
 				break;
 			case 17: // Up Arrow
-				if (currentRow != 0) {
+				if (currentRow-1 > 0) {
 					currentRow--;
+					current = current->prev;
 				}
 				break;
 			case 18: // Down Arrow
 				// TODO: Keep track of the number of lines for limiting scrolling
 				if (currentRow<maxRows-1) {
 					currentRow++;
+					current = current->next;
 				}
 				break;
 			case 19: // Right Arrow
@@ -424,7 +440,7 @@ int main(int argc, char *argv[]) {
 			// TODO: Figure out end
 			/*case 79: // End 
 				for (int i = 0; i >= 1000; i++) {
-					if (get_node_at_index(head,currentRow-1)->lineptr[i] == 0) {
+					if (get_node_at_index(current,currentRow-1)->lineptr[i] == 0) {
 						currentCollumn = i;
 						break;
 					}
@@ -436,7 +452,7 @@ int main(int argc, char *argv[]) {
 		}
 		// Check if there's enough of a reason to update the screen
 		//checkIfReRenderNecessary();
-		printScreen(head);
+		printScreen(current);
 		
 		// Use 9 to exit
 		if (currentCharacter == '9') {
