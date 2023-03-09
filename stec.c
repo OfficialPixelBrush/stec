@@ -15,7 +15,8 @@
 unsigned int fileSize; // The size of the loaded file in Bytes
 int rows, cols; // The size of the terminal in characters (e.g. 80x25)
 long int currentRow, currentCollumn = 0; // The current position of the cursor relative to the first character of the file
-unsigned char running = 1;
+unsigned char running = 1; // Set if application is running
+unsigned char query = 0; // Set if application is asking for user input
 unsigned long int maxRows = 0;
 
 // I hate myself for wanting this on both Linux and Windows
@@ -167,14 +168,33 @@ int decodeKeycodes() {
  * nodeL3
  *    \_*lineptr -> (points to array for line 3)
  *      *nextNode -> null;
- * The size of the line arrays are changed using typical array resizing operations.
  */
-typedef struct node {
+typedef struct lineNode {
     unsigned char *lineptr;
 	unsigned int linelength;
-    struct node * prev;
-    struct node * next;
-} node_t;
+    struct lineNode * prev;
+    struct lineNode * next;
+} lineNode_t;
+
+// Struct for a character Node
+typedef struct charNode {
+	unsigned char letter;
+	struct charNode * prev;
+	struct charNode * next;
+} charNode_t;
+
+// TODO: Conversion from array to linked-list of nodes
+charNode_t arrayToNodes() {
+	// Load in each char and turn it into a charNode
+}
+
+unsigned char * nodesToArray() {
+	// Iterate over the nodes to find out how long it is (alternatively, just keep track of it using lineLength)
+	// Make an appropriately sized array with the characters this lineNode contains
+	// Free the memory the nodes took up
+	// Replace the pointer of the array the current line's lineNode had
+	// Free the memory the old array used
+}
 
 // Get Size of File
 int fsize(FILE *fp){
@@ -185,61 +205,63 @@ int fsize(FILE *fp){
     return sz;
 }
 
+// This was patched by ChatGPT Feb 13 Version
 // Redraw the entire screen
-int printScreen(node_t *head) {
-	printf("\x1b[?25l"); // Turn off cursor
+int printScreen(lineNode_t *head) {
+    printf("\x1b[?25l"); // Turn off cursor
+
+    char character;
+    int rowsHalf = rows / 2;
+    lineNode_t *current = head;
+
+    // Iterate over top part of the screen
+    for (int y = rowsHalf; y >= 1; y--) {
+        // Position Cursor
+        printf("\x1b[%u;%uH", y, 1);
+        // Clear line
+        printf("\x1b[2K");
+        if ((current != NULL) && (current->lineptr != NULL)) {
+            for (int x = 1; x <= cols; x++) {
+                character = current->lineptr[x - 1];
+                if (character != 0) {
+                    putchar(character);
+                }
+                else {
+                    break;
+                }
+            }
+        }
+        if (current->prev != NULL) {
+            current = current->prev;
+        }
+        else {
+            break;
+        }
+    }
 	
-	char character;
-	int rowsHalf = rows/2;
-	node_t *current = head;	
-	
-	// Iterate over bottom part of the screen
-	for (int y = rowsHalf; y <= rows; y++) {
-		// Position Cursor
-		printf("\x1b[%u;%uH", y, 1);
-		// Clear line
-		printf("\x1b[2K");
-		if ((current != NULL) && (current->lineptr != NULL)) {
-			for (int x = 1; x <= cols; x++) { 
-				character = current->lineptr[x-1];
-				if (character != 0) {
-					putchar(character);
-				} else {
-					break;
-				}
-			}
-		}
-		current = current -> next;
-	}
-	
-	// TODO: Get this to work. Previous lines are being weird for no reason
-	current = head; // Re-center head
-	// Iterate over top part of the screen
-	for (int y = rowsHalf; y <= 1; y--) {
-		// Position Cursor
-		printf("\x1b[%u;%uH", y, 1);
-		// Clear line
-		printf("\x1b[2K");
-		if ((current != NULL) && (current->lineptr != NULL)) {
-			for (int x = 1; x <= cols; x++) { 
-				character = current->lineptr[x-1];
-				if (character != 0) {
-					putchar(character);
-				} else {
-					break;
-				}
-			}
-		}
-		if (current -> prev != NULL) {
-			current = current -> prev;
-		} else {
-			return 0;
-		}
-		return 0;
-	}
-	
-	printf("\x1b[?25h"); // Enable Cursor
-	return 0;
+    current = head; // Re-center head
+    // Iterate over bottom part of the screen
+    for (int y = rowsHalf; y <= rows; y++) {
+        // Position Cursor
+        printf("\x1b[%u;%uH", y, 1);
+        // Clear line
+        printf("\x1b[2K");
+        if ((current != NULL) && (current->lineptr != NULL)) {
+            for (int x = 1; x <= cols; x++) {
+                character = current->lineptr[x - 1];
+                if (character != 0) {
+                    putchar(character);
+                }
+                else {
+                    break;
+                }
+            }
+        }
+        current = current->next;
+    }
+
+    printf("\x1b[?25h"); // Enable Cursor
+    return 0;
 }
 
 // Place the cursor at the specified x,y screen coorindate
@@ -254,14 +276,15 @@ int typeCharacter(char character) {
 	// Make space in the array for a character/
 	// Insert the Character
 	// TODO: Figure this shit out
+	// Will be a lot easier with charNodes!
 }
 
 // Load the File into Nodes
-int loadFileIntoNodes(FILE *fptr,node_t *current) {
+int loadFileIntoNodes(FILE *fptr,lineNode_t *current) {
 	// Load other chars
 	unsigned long int lineStart = 0;
 	unsigned long int lineEnd = 0;
-	node_t *previous = NULL;
+	lineNode_t *previous = NULL;
 	for (unsigned long int i = 0; i <= fileSize; i++) {
 		unsigned char character = fgetc(fptr);
 		// Make new nodes until EOF
@@ -281,24 +304,24 @@ int loadFileIntoNodes(FILE *fptr,node_t *current) {
 			arrayPtr[lineEnd - lineStart] = 0; // Set the null terminator
 			maxRows++; // Increase number of max rows in file
 			
-			// Create new node
-			node_t *newNode = (node_t *) malloc(sizeof(node_t)); // Allocate space for new node
+			// Create new lineNode
+			lineNode_t *newNode = (lineNode_t *) malloc(sizeof(lineNode_t)); // Allocate space for new lineNode
 			if (newNode == NULL) { // Error Check
-				printf("New node allocation error\n");
+				printf("New lineNode allocation error\n");
 				return 1;
 			}
 			newNode->lineptr = arrayPtr; // Point to new string
 			newNode->linelength = lineEnd-lineStart; // Get size of line for convenience
-			newNode->prev = previous; // Point to previous node
-			newNode->next = NULL; // Define next node as NULL
+			newNode->prev = previous; // Point to previous lineNode
+			newNode->next = NULL; // Define next lineNode as NULL
 			
-			// Make the next node of the current node the new Node
+			// Make the next lineNode of the current lineNode the new Node
 			current->next = newNode;
 			
-			// The current node is now the current node
+			// The current lineNode is now the current lineNode
 			previous = newNode;
 			
-			// The current node is now the next node
+			// The current lineNode is now the next lineNode
 			current = newNode;
 			lineStart = i+1; // Set start of next line
 		}
@@ -345,10 +368,10 @@ int main(int argc, char *argv[]) {
 	printf("File is %dB Big\n",fileSize);
 	
 	// ****** Read the file into Memory ******
-	// Set up node for the currently selected line
-	node_t * current = (node_t *) malloc(sizeof(node_t)); // Allocate space for current node
+	// Set up lineNode for the currently selected line
+	lineNode_t * current = (lineNode_t *) malloc(sizeof(lineNode_t)); // Allocate space for current lineNode
 	if (current == NULL) {
-		printf("Current node allocation error\n");
+		printf("Current lineNode allocation error\n");
 		return 1;
 	}
 	current->prev = NULL;
@@ -454,9 +477,24 @@ int main(int argc, char *argv[]) {
 		//checkIfReRenderNecessary();
 		printScreen(current);
 		
-		// Use 9 to exit
-		if (currentCharacter == '9') {
-			running = 0;
+		// Use Ctrl+X to exit
+		if (currentCharacter == 24) {//'9') {
+			query = 1;
+			printf("\x1b[%u;%uH\x1b[2K", rows, 1);
+			printf("Are you sure you want to exit? y/n");
+			while (query == 1) {
+				switch ( _getch()) {
+					case 'y': // Exit Application
+					case 'Y':
+						query = 0;
+						running = 0;
+						break;
+					case 'n': // Resume Application
+					case 'N':
+						query = 0;
+						break;
+				};
+			}
 		}
 	}
 	
