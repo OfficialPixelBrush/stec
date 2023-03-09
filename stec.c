@@ -18,6 +18,7 @@ long int currentRow, currentCollumn = 0; // The current position of the cursor r
 unsigned char running = 1; // Set if application is running
 unsigned char query = 0; // Set if application is asking for user input
 unsigned long int maxRows = 0;
+char *screen;
 
 // I hate myself for wanting this on both Linux and Windows
 // And that I'm refusing to use ncurses or similar
@@ -170,7 +171,7 @@ int decodeKeycodes() {
  *      *nextNode -> null;
  */
 typedef struct lineNode {
-    unsigned char *lineptr;
+    char *lineptr;
 	unsigned int linelength;
     struct lineNode * prev;
     struct lineNode * next;
@@ -178,7 +179,7 @@ typedef struct lineNode {
 
 // Struct for a character Node
 typedef struct charNode {
-	unsigned char letter;
+	char letter;
 	struct charNode * prev;
 	struct charNode * next;
 } charNode_t;
@@ -188,7 +189,7 @@ charNode_t arrayToNodes() {
 	// Load in each char and turn it into a charNode
 }
 
-unsigned char * nodesToArray() {
+char * nodesToArray() {
 	// Iterate over the nodes to find out how long it is (alternatively, just keep track of it using lineLength)
 	// Make an appropriately sized array with the characters this lineNode contains
 	// Free the memory the nodes took up
@@ -207,6 +208,40 @@ int fsize(FILE *fp){
 
 // This was patched by ChatGPT Feb 13 Version
 // Redraw the entire screen
+int printScreen(lineNode_t *head) {
+    printf("\x1b[?25l"); // Turn off cursor
+    printf("\x1b[H"); // Turn off cursor
+    lineNode_t *current = head;
+    char character;
+	
+	for (int y = 0; y < rows; y++) {
+        if ((current != NULL) && (current->lineptr != NULL)) {
+			for (int x = 0; x < cols; x++) {
+                character = current->lineptr[x - 1];
+                if (character != 0) {
+					printf("%c",character);
+                }
+                else {
+                    break;
+				}
+			}
+		}
+		printf("\n",character);
+        if (current->prev != NULL) {
+            current = current->prev;
+        }
+        else {
+            break;
+        }
+	}
+	
+	//printf("%s",screen);
+
+    printf("\x1b[?25h"); // Enable Cursor
+    return 0;
+}
+
+/*
 int printScreen(lineNode_t *head) {
     printf("\x1b[?25l"); // Turn off cursor
 
@@ -262,7 +297,7 @@ int printScreen(lineNode_t *head) {
 
     printf("\x1b[?25h"); // Enable Cursor
     return 0;
-}
+}*/
 
 // Place the cursor at the specified x,y screen coorindate
 int placeCursor() {	
@@ -362,6 +397,10 @@ int main(int argc, char *argv[]) {
     get_terminal_size(&rows, &cols);
     printf("The terminal size is %d rows by %d columns.\n", rows, cols);
 	// This is here as a debug feature, just to check if I'm dumb
+	
+	// Generate Screen internally
+	screen = (unsigned char*) malloc(rows*cols*sizeof(unsigned char)); 
+	memset(screen,0,rows*cols);
 	
 	// Get Filesize to determine array size
 	fileSize = fsize(fptr);
