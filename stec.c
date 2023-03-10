@@ -210,32 +210,33 @@ int fsize(FILE *fp){
 // Redraw the entire screen
 int printScreen(lineNode_t *head) {
     printf("\x1b[?25l"); // Turn off cursor
-    printf("\x1b[H"); // Turn off cursor
+    printf("\x1b[2J"); // Clear Screen
+    printf("\x1b[H"); // Go home
     lineNode_t *current = head;
     char character;
 	
-	for (int y = 0; y < rows; y++) {
+	for (int y = 0; y <= rows; ++y) {
+		printf("\n");
         if ((current != NULL) && (current->lineptr != NULL)) {
+			//printf("%s",current->lineptr);
 			for (int x = 0; x < cols; x++) {
-                character = current->lineptr[x - 1];
-                if (character != 0) {
-					printf("%c",character);
+                character = current->lineptr[x];
+                if (character >= 32 ) {
+					screen[x+y*cols] = character;
+					putchar(screen[x+y*cols]);
                 }
                 else {
                     break;
 				}
 			}
 		}
-		printf("\n",character);
-        if (current->prev != NULL) {
-            current = current->prev;
+        if (current->next != NULL) {
+            current = current->next;
         }
         else {
             break;
         }
 	}
-	
-	//printf("%s",screen);
 
     printf("\x1b[?25h"); // Enable Cursor
     return 0;
@@ -399,8 +400,7 @@ int main(int argc, char *argv[]) {
 	// This is here as a debug feature, just to check if I'm dumb
 	
 	// Generate Screen internally
-	screen = (unsigned char*) malloc(rows*cols*sizeof(unsigned char)); 
-	memset(screen,0,rows*cols);
+	screen = (unsigned char*) calloc(rows*cols,sizeof(unsigned char));
 	
 	// Get Filesize to determine array size
 	fileSize = fsize(fptr);
