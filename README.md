@@ -24,4 +24,7 @@
 
 # How it works:
 First the loaded file is split up based on it's lines.
-These lines are saved in the form of a Linked List.
+These lines are saved in the form of a Doubly Linked List.
+Each of these List Nodes contains an array containing the relevant Characters.
+
+Whenever a line is edited, it is converted into a Double Linked List as well, to allow for easy editing of Lines.
